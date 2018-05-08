@@ -134,3 +134,55 @@ Let's look at the expansion of our little `parse_cargo`, or at least snippets of
         }
     }
 ```
+
+As you can see, this is a lot of code to generate, and it chains together just fine. I think
+one real strength of `nom` is it's composability.
+
+Here's a parser that matches the beginning of a PND file and gives us a struct with the
+height, width, and other basic metadata:
+
+``` rust
+named!(png_header( &[u8] ) -> PngHeader,
+    do_parse!(
+        _signature: png_signature >>
+        _chunk_length: take!(4) >>
+        _chunk_type: take!(4) >>
+        width: u32!(nom::Endianness::Big) >>
+        height: u32!(nom::Endianness::Big) >>
+        bit_depth: take!(1) >>
+        // snip ...
+
+);
+```
+
+This has some useful properties.
+
+1. The combined parser fails if its constituents fail - easy validation
+2. You can make parsers that return user defined types
+3. Pull structs you define out of byte arrays in safe Rust
+
+
+First, it makes a function with this signature:
+
+``` rust
+for<'r> fn(&'r [u8]) -> nom::IResult<&'r [u8], png_demo::PngHeader>
+```
+
+Which is great. We give it a byte slice, and we might get back a PngHeader.
+
+Validations are pretty easy. For example:
+
+``` rust
+static PNG_FILE_SIGNATURE : [u8; 8] = [
+    137, 80, 78, 71, 13, 10, 26, 10
+];
+
+named!(png_signature<&[u8], &[u8]>, tag!(&PNG_FILE_SIGNATURE[..]));
+```
+
+Valid PNGs all contain these bytes at the beginning of the file. 
+Notice that I'm not actually using this result in my struct, but
+the parser will still fail if I don't include it.
+
+
+

@@ -21,19 +21,86 @@
 
 class: center, middle
 
-# Title
+# nom
+
+## Eating data byte by byte
 
 ---
 
 # Agenda
 
-1. Introduction
-2. Deep-dive
-3. ...
+1. Some example parsers
+2. Problems I have and how I escape them
+3. A side project I want to show off
 
 ---
 
-# Introduction
+# Our very first nom parser
+
+``` rust
+named!(parse_cargo,
+    alt!(tag!(&b"cargo"[..]) | tag!(&b"Cargo"[..]))
+);
+```
+
+---
+
+# Our very first nom parser
+
+``` rust
+named!(parse_cargo,
+    alt!(tag!(&b"cargo"[..]) | tag!(&b"Cargo"[..]))
+);
+```
+
+* Creates a fn like `fn parse_cargo(i: &[u8]) -> nom::IResult<&[u8], &[u8], u32>`
+* fn will return Done, Incomplete, or Error
+* Note how `alt!` lets you combine parsers
+
+---
+# nom::IResult
+
+``` rust
+    match parse_cargo(input.as_bytes()) {
+        nom::IResult::Done(input, output) => 
+            println!("'Done', rest is {:?} and output is {:?}", input, output),
+        nom::IResult::Error(err) => 
+            println!("Error: {:?}", err),
+        nom::IResult::Incomplete(needed) => 
+            println!("Incompled, needed {:?}", needed),
+    }
+```
+
+* `Done` gives you what matched and what's left
+* `Incomplete` gives you total length needed for a match
+* `Error` tells you the parser knows it can't match this input
+
+---
+
+# PNG Example Parser
+
+``` rust
+named!(png_header( &[u8] ) -> PngHeader,
+    do_parse!(
+        _signature: png_signature >>
+        _chunk_length: take!(4) >>
+        _chunk_type: take!(4) >>
+        width: u32!(nom::Endianness::Big) >>
+        height: u32!(nom::Endianness::Big) >>
+        bit_depth: take!(1) >>
+        // snip ...
+
+);
+```
+---
+
+# Useful Properties
+
+1. The combined parser fails if its constituents fail - easy validation
+2. You can make parsers that return user defined types
+3. Pull structs you define out of byte arrays in safe Rust
+
+---
 
     </textarea>
     <script src="https://remarkjs.com/downloads/remark-latest.min.js">
