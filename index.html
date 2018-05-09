@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Title</title>
+    <title>Try and learn nom</title>
     <meta charset="utf-8">
     <style>
       @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
@@ -172,7 +172,7 @@ error: no rules expected the token `i_`
 ## Missing paren or pair of parens. Anyone see where?
 
 ---
-# The big drawback: weird compiler errors
+# The main drawback: weird compiler errors
 
 What do you think I did wrong to get this?
 
@@ -191,18 +191,22 @@ error: no rules expected the token `i_`
 
 ### Missing paren or pair of parens, needed:
 
-``` rust
+* If you see "``no rules expected the token `i_``", think "more parentheses"
+* Note that you need to parenthesize the result of `do_parse!` even if it's single symbol
+
+```rust
 named!(color_type_rgb_triple_with_alpha<&[u8], ColorType>,
-    do_parse!(a: tag!(&[6][..]) >> (ColorType::RGBTripleWithAlpha))
+*    do_parse!(a: tag!(&[6][..]) >> (ColorType::RGBTripleWithAlpha))
 );
 ```
 
 ---
+
 # Why this particular error?
 
 Lots of nom parsers expand like this:
 
-``` rust
+```rust
 #[allow(unused_variables)]
 fn parse_cargo(i: &[u8]) -> ::IResult<&[u8], &[u8], u32> {
     {
@@ -212,17 +216,33 @@ fn parse_cargo(i: &[u8]) -> ::IResult<&[u8], &[u8], u32> {
             // snip...
 ```
 
-* If you see `no rules expected the token \`i_\`, think "more parentheses"
-* Note that you need to parenthesize the result of `do_parse!` even if it's single symbol
-
-
 ---
 
+# rustc will actually suggest macros now!
+
+``` rust
+named!(palette_vector (&[u8]) -> Vec<RgbTriple>, many!(rgb_triple));
+```
+
+```
+$ cargo build
+error: cannot find macro `many!` in this scope
+   --> src/png_demo.rs:140:1
+    |
+140 | named!(palette_vector (&[u8]) -> Vec<RgbTriple>, many!(rgb_triple));
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 
+    help: you could try the macro: `many0`
+```
+
+---
     </textarea>
     <script src="https://remarkjs.com/downloads/remark-latest.min.js">
     </script>
     <script>
-      var slideshow = remark.create();
+      var slideshow = remark.create({
+        highlightLines: true,
+        highlightStyle: "dracula"
+      });
     </script>
   </body>
 </html>
