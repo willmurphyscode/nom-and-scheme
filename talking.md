@@ -185,4 +185,6 @@ Notice that I'm not actually using this result in my struct, but
 the parser will still fail if I don't include it.
 
 
+# Sources:
 
+- [PNG File Specification](https://www.w3.org/TR/PNG-Chunks.html)

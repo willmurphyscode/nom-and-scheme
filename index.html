@@ -88,10 +88,42 @@ named!(png_header( &[u8] ) -> PngHeader,
         width: u32!(nom::Endianness::Big) >>
         height: u32!(nom::Endianness::Big) >>
         bit_depth: take!(1) >>
-        // snip ...
-
+        color_type: color_type >>
+        filter_method: take!(1) >>
+        interlace_method: take!(1) >>
+        (
+            PngHeader {
+                width: width,
+                height: height,
+                bit_depth: bit_depth[0],
+                color_type: color_type,
+                filter_method: filter_method[0],
+                interlace_method: filter_method[0],
+            }
+        )
+    )
 );
 ```
+---
+# PNG Example Parser
+## How `color_type` works:
+
+``` rust
+named!(color_type_grayscale<&[u8], ColorType>,
+    do_parse!(a: tag!(&[0][..]) >> (ColorType::Grayscale))
+);
+// snip...
+
+named!(color_type<&[u8], ColorType>, 
+    alt!(color_type_grayscale 
+        | color_type_rgb_triple 
+        | color_type_palette_index
+        | color_type_grayscale_with_alpha
+        | color_type_rgb_triple_with_alpha )
+);
+```
+
+
 ---
 
 # Useful Properties
@@ -99,6 +131,90 @@ named!(png_header( &[u8] ) -> PngHeader,
 1. The combined parser fails if its constituents fail - easy validation
 2. You can make parsers that return user defined types
 3. Pull structs you define out of byte arrays in safe Rust
+
+---
+# The big drawback: weird compiler errors
+
+What do you think I did wrong to get this?
+
+```
+error: no rules expected the token `i_`
+  --> src/png_demo.rs:64:1
+   |
+64 | / named!(color_type_rgb_triple_with_alpha<&[u8], ColorType>,
+65 | |     do_parse!(a: tag!(&[6][..]) >> ColorType::RGBTripleWithAlpha)
+66 | | );
+   | |__^
+   |
+   = note: this error originates in a macro outside of the current crate 
+        (in Nightly builds, run with -Z external-macro-backtrace formore info)
+```
+
+---
+
+# The big drawback: weird compiler errors
+
+What do you think I did wrong to get this?
+
+```
+error: no rules expected the token `i_`
+  --> src/png_demo.rs:64:1
+   |
+64 | / named!(color_type_rgb_triple_with_alpha<&[u8], ColorType>,
+65 | |     do_parse!(a: tag!(&[6][..]) >> ColorType::RGBTripleWithAlpha)
+66 | | );
+   | |__^
+   |
+   = note: this error originates in a macro outside of the current crate 
+        (in Nightly builds, run with -Z external-macro-backtrace formore info)
+```
+
+## Missing paren or pair of parens. Anyone see where?
+
+---
+# The big drawback: weird compiler errors
+
+What do you think I did wrong to get this?
+
+```
+error: no rules expected the token `i_`
+  --> src/png_demo.rs:64:1
+   |
+64 | / named!(color_type_rgb_triple_with_alpha<&[u8], ColorType>,
+65 | |     do_parse!(a: tag!(&[6][..]) >> ColorType::RGBTripleWithAlpha)
+66 | | );
+   | |__^
+   |
+   = note: this error originates in a macro outside of the current crate 
+        (in Nightly builds, run with -Z external-macro-backtrace formore info)
+```
+
+### Missing paren or pair of parens, needed:
+
+``` rust
+named!(color_type_rgb_triple_with_alpha<&[u8], ColorType>,
+    do_parse!(a: tag!(&[6][..]) >> (ColorType::RGBTripleWithAlpha))
+);
+```
+
+---
+# Why this particular error?
+
+Lots of nom parsers expand like this:
+
+``` rust
+#[allow(unused_variables)]
+fn parse_cargo(i: &[u8]) -> ::IResult<&[u8], &[u8], u32> {
+    {
+        {
+            let i_ = i.clone();
+            let res =
+            // snip...
+```
+
+* If you see `no rules expected the token \`i_\`, think "more parentheses"
+* Note that you need to parenthesize the result of `do_parse!` even if it's single symbol
+
 
 ---
 
