@@ -14,6 +14,9 @@
         font-weight: normal;
       }
       .remark-code, .remark-inline-code { font-family: 'Ubuntu Mono'; }
+      .remark-code-line-highlighted {
+        background-color: rgba(0, 255, 10, 0.5);
+      }
     </style>
   </head>
   <body>
@@ -133,50 +136,74 @@ named!(color_type<&[u8], ColorType>,
 3. Pull structs you define out of byte arrays in safe Rust
 
 ---
-# The big drawback: weird compiler errors
+# Parsing more of the PNG:
 
-What do you think I did wrong to get this?
+```rust
+struct PngHeader {
+    width: u32, 
+    height: u32,
+    bit_depth: u8,
+    color_type: ColorType,
+    filter_method: u8,
+    interlace_method: u8,
+}
 
-```
-error: no rules expected the token `i_`
-  --> src/png_demo.rs:64:1
-   |
-64 | / named!(color_type_rgb_triple_with_alpha<&[u8], ColorType>,
-65 | |     do_parse!(a: tag!(&[6][..]) >> ColorType::RGBTripleWithAlpha)
-66 | | );
-   | |__^
-   |
-   = note: this error originates in a macro outside of the current crate 
-        (in Nightly builds, run with -Z external-macro-backtrace formore info)
+struct PngFile {
+    header: PngHeader,
+    palette: Option<Vec<RgbTriple>>,
+}
+
+struct RgbTriple {
+    red: u8,
+    green: u8,
+    blue: u8,
+}
 ```
 
 ---
+# Parsing more of the PNG:
 
-# The big drawback: weird compiler errors
-
-What do you think I did wrong to get this?
-
+``` rust
+named!(png_file (&[u8]) -> PngFile,
+    do_parse!(
+        header: png_header >>
+        _header_crc: take!(4) >>
+        palette: opt!(palette_chunk) >>
+        (
+            PngFile {
+                header: header,
+                palette: palette,
+            }
+        )
+    )
+);
 ```
-error: no rules expected the token `i_`
-  --> src/png_demo.rs:64:1
-   |
-64 | / named!(color_type_rgb_triple_with_alpha<&[u8], ColorType>,
-65 | |     do_parse!(a: tag!(&[6][..]) >> ColorType::RGBTripleWithAlpha)
-66 | | );
-   | |__^
-   |
-   = note: this error originates in a macro outside of the current crate 
-        (in Nightly builds, run with -Z external-macro-backtrace formore info)
-```
 
-## Missing paren or pair of parens. Anyone see where?
+---
+# `opt!` is cool
+
+``` rust
+named!(png_file (&[u8]) -> PngFile,
+    do_parse!(
+        header: png_header >>
+        _header_crc: take!(4) >>
+*       palette: opt!(palette_chunk) >>
+        (
+            PngFile {
+                header: header,
+                palette: palette,
+            }
+        )
+    )
+);
+```
 
 ---
 # The main drawback: weird compiler errors
 
 What do you think I did wrong to get this?
 
-```
+```bash
 error: no rules expected the token `i_`
   --> src/png_demo.rs:64:1
    |
@@ -189,14 +216,37 @@ error: no rules expected the token `i_`
         (in Nightly builds, run with -Z external-macro-backtrace formore info)
 ```
 
-### Missing paren or pair of parens, needed:
+---
 
-* If you see "``no rules expected the token `i_``", think "more parentheses"
-* Note that you need to parenthesize the result of `do_parse!` even if it's single symbol
+
+# Missing paren or pair of parens.
+
+## Anyone see where?
 
 ```rust
 named!(color_type_rgb_triple_with_alpha<&[u8], ColorType>,
-*    do_parse!(a: tag!(&[6][..]) >> (ColorType::RGBTripleWithAlpha))
+    do_parse!(a: tag!(&[6][..]) >> ColorType::RGBTripleWithAlpha)
+);
+```
+
+--
+
+* If you see "`no rules expected the token i_`", think "more parentheses"
+* Note that you need to parenthesize the result of `do_parse!` even if it's a single symbol
+
+---
+
+# Missing paren or pair of parens, needed:
+
+```rust
+named!(color_type_rgb_triple_with_alpha<&[u8], ColorType>,
+*   do_parse!(a: tag!(&[6][..]) >> ColorType::RGBTripleWithAlpha)
+);
+```
+
+```rust
+named!(color_type_rgb_triple_with_alpha<&[u8], ColorType>,
+*   do_parse!(a: tag!(&[6][..]) >> (ColorType::RGBTripleWithAlpha))
 );
 ```
 
@@ -216,6 +266,9 @@ fn parse_cargo(i: &[u8]) -> ::IResult<&[u8], &[u8], u32> {
             // snip...
 ```
 
+If the last macro didn't close correctly, it will blow up when 
+it gets to that `i_`. 
+
 ---
 
 # rustc will actually suggest macros now!
@@ -224,17 +277,118 @@ fn parse_cargo(i: &[u8]) -> ::IResult<&[u8], &[u8], u32> {
 named!(palette_vector (&[u8]) -> Vec<RgbTriple>, many!(rgb_triple));
 ```
 
-```
+
+```bash
 $ cargo build
 error: cannot find macro `many!` in this scope
    --> src/png_demo.rs:140:1
     |
 140 | named!(palette_vector (&[u8]) -> Vec<RgbTriple>, many!(rgb_triple));
     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 
-    help: you could try the macro: `many0`
+*    help: you could try the macro: `many0`
 ```
 
 ---
+class: center, middle
+
+# Questions about these parsers?
+
+---
+
+# Parsing a Scheme-lik syntax
+
+1. Tokenize with `nom`
+2. Hand-written shift-reduce parser to evaluate
+3. Let's have fun and add another operator
+
+---
+
+# The tokens
+
+```rust
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum Token {
+    LeftParen,
+    RightParen,
+    Operator(Opcode),
+    Operand(Type),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Opcode {
+    Add, Subtract, Multiply, Divide, And, Or, Gt, Lt, If
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Type {
+    Bool(bool), Integer(isize)
+}
+```
+
+We're going to add a new operator. So make up an operation (over ints and bools).
+
+---
+
+# The tokenizers
+
+```rust
+
+named!(right_paren<&[u8], Token>,
+    do_parse!(tag!(")") >> (Token::RightParen))
+);
+
+named!(addition_sign<&[u8], Token>,
+    do_parse!(tag!("+") >> (Token::Operator(Opcode::Add)))
+);
+```
+
+And many more like that
+
+---
+
+# Where nom was awesome
+
+```rust
+named!(single_token<&[u8], Token>,
+    alt!(
+        left_paren |
+        right_paren |
+        addition_sign |
+        subtraction_sign |
+        multiplication_sign |
+        division_sign |
+        bool_operator |
+        comparator |
+        if_operator |
+        operand
+    )
+);
+
+named!(tokens<&[u8], Vec<Token>>,
+    ws!(many0!(single_token))
+);
+```
+---
+
+class: center, middle
+
+# Let's add an operator to this language!
+
+---
+
+# Me
+
+willmurphy was taken, used **`willmurphyscode`**:
+
+willmurphyscode.net, twitter, GitHub, gmail
+
+# Sources
+
+- nom docs: http://rust.unhandledexpression.com/nom/
+- PNG format spec: https://www.w3.org/TR/PNG-Chunks.html
+
+---
+
     </textarea>
     <script src="https://remarkjs.com/downloads/remark-latest.min.js">
     </script>
