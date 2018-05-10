@@ -70,7 +70,7 @@ named!(parse_cargo,
         nom::IResult::Error(err) => 
             println!("Error: {:?}", err),
         nom::IResult::Incomplete(needed) => 
-            println!("Incompled, needed {:?}", needed),
+            println!("Incomplete, needed {:?}", needed),
     }
 ```
 
