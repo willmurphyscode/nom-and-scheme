@@ -164,6 +164,8 @@ struct RgbTriple {
 # Parsing more of the PNG:
 
 ``` rust
+named!(palette_vector (&[u8]) -> Vec<RgbTriple>, many0!(rgb_triple));
+
 named!(png_file (&[u8]) -> PngFile,
     do_parse!(
         header: png_header >>
@@ -183,6 +185,8 @@ named!(png_file (&[u8]) -> PngFile,
 # `opt!` is cool
 
 ``` rust
+named!(palette_vector (&[u8]) -> Vec<RgbTriple>, many0!(rgb_triple));
+
 named!(png_file (&[u8]) -> PngFile,
     do_parse!(
         header: png_header >>
@@ -269,6 +273,37 @@ fn parse_cargo(i: &[u8]) -> ::IResult<&[u8], &[u8], u32> {
 If the last macro didn't close correctly, it will blow up when 
 it gets to that `i_`. 
 
+---
+
+# Experiment with simpler parsers
+
+The parsers can be combined in a number of ways, so I'll often do something like this:
+
+``` rust
+named!(png_header( &[u8] ) -> PngHeader,
+    do_parse!(
+        // _signature: tag!(&PNG_FILE_SIGNATURE[..]) >>
+        // _chunk_length: take!(4) >>
+        // _chunk_type: take!(4) >>
+        width: u32!(nom::Endianness::Big) >>
+        // height: u32!(nom::Endianness::Big) >>
+        // bit_depth: take!(1) >>
+        // color_type: color_type >>
+        // filter_method: take!(1) >>
+        // interlace_method: take!(1) >>
+        (
+            PngHeader {
+                width: width,
+                height: 0, // height,
+                bit_depth: 0, // bit_depth[0],
+                color_type: ColorType::Grayscale,
+                filter_method: 0, //filter_method[0],
+                interlace_method: 0,//filter_method[0],
+            }
+        )
+    )
+);
+```
 ---
 
 # rustc will actually suggest macros now!
