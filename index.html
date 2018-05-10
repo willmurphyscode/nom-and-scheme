@@ -52,7 +52,7 @@ named!(parse_cargo,
 
 ``` rust
 named!(parse_cargo,
-    alt!(tag!(&b"cargo"[..]) | tag!(&b"Cargo"[..]))
+    alt!(tag!(&"cargo"[..]) | tag!(&"Cargo"[..]))
 );
 ```
 
